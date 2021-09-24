@@ -1,0 +1,78 @@
+﻿@page "/calendarsync"
+@using CalendarSync_Blazor_WA.Shared
+@using Azure.Identity
+@inject HttpClient Http
+<h3>CalendarSync</h3>
+
+<p>Client ID</p>
+<input type="text" placeholder="Client ID" @bind-value="@clientId" />
+
+<p>Tenant ID</p>
+<input type="text" placeholder="Tenant ID" @bind-value="@tenantId" />
+
+<p>Service Account Email</p>
+<input type="email" placeholder="Email" @bind-value="@email" />
+
+<p>Password</p>
+<input type="password" placeholder="Password" @bind-value="@password" />
+
+<button id="submit" class="bg-primary" @onclick="ExecuteCalendarSync"> Submit </button>
+
+<br />
+<h3>Status = @result</h3>
+
+@code {
+
+    string clientId = string.Empty;
+    string tenantId = string.Empty;
+    string email = string.Empty;
+    string password = string.Empty;
+    string result = string.Empty;
+
+    private void ExecuteCalendarSync()
+    {
+        CalendarSyncConfiguration calendarSyncConfiguration = new CalendarSyncConfiguration
+        {
+            ApplicationId = clientId,
+            DirectoryId = tenantId,
+            ServiceAccountEmail = email,
+            Password = password
+        };
+
+        IPublicClientApplication publicClientApplication = PublicClientApplicationBuilder
+        .Create(calendarSyncConfiguration.ApplicationId)
+        .WithAuthority(AzureCloudInstance.AzurePublic, calendarSyncConfiguration.DirectoryId)
+        .Build();
+
+        UsernamePasswordProvider authProvider = new UsernamePasswordProvider(publicClientApplication);
+        //var handlers = GraphClientFactory.CreateDefaultHandlers(authProvider);
+        //var httpClient = GraphClientFactory.Create(handlers);
+
+        var graphServiceClient = new GraphServiceClient(Http);
+        graphServiceClient.AuthenticationProvider = authProvider;
+
+        CheckConnectionStatus(graphServiceClient, calendarSyncConfiguration);
+    }
+
+    private async void CheckConnectionStatus(GraphServiceClient graphServiceClient, CalendarSyncConfiguration calSyncConfiguration)
+    {
+        try
+        {
+            var user = await graphServiceClient.Me
+                       .Request()
+                       .WithUsernamePassword(calSyncConfiguration.ServiceAccountEmail, calSyncConfiguration.Password.ToSecureString())
+                       .GetAsync();
+
+            if (user != null)
+            {
+                result = "Connection Successful!";
+            }
+
+            result = "Failed to make connection with the Graph Service";
+        }
+        catch (Exception ex)
+        {
+            result = ex.ToString();
+        }
+    }
+}
